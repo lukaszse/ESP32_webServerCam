@@ -18,6 +18,10 @@ const char* password = "nalpinalpi";
 
 AsyncWebServer server(80);  //użycie serwera asynchronicznego http na porcie 80
 
+int pictureNumber = 0;
+String pictureList[100];
+String picturePath; 
+
 //prosta strona www z miejscem na obraz z kamery
 // const char index_html[] PROGMEM = R"rawliteral(   
 // <!DOCTYPE HTML><html>
@@ -31,45 +35,59 @@ AsyncWebServer server(80);  //użycie serwera asynchronicznego http na porcie 80
 // </html>)rawliteral"; */
 
 String index_html() {
-  String html = "// <!DOCTYPE HTML><html><head><meta name=/\"viewport\" content=\"width=device-width, initial-scale=1\"></head><<body>";
-  html += "<h2>ESP Image Web Server</h2>";
-  html += "<img src=\"fotka\">";
-  html += "</body></html>";
+  String html = "<!DOCTYPE html> <html>\n";
+    html +="<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
+    html +="<meta http-equiv=\"refresh\" content=\"2;URL='http://esp32.local/'\">";
+    html +="<title>ESP Image Web Server</title>\n";
+    html +="<style>html { font-family: Helvetica; margin: 0px auto; text-align: center;}\n";
+    html +="body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;} h3 {color: #444444;margin-bottom: 50px;}\n</style>\n</head>\n<body>\n";
+    html += "<h2>ESP Image Web Server</h2>\n";
+  for(int i=0; i<pictureNumber; i++) {
+    String pictureEndpoint = pictureList[i];
+    html += "<img src=\"";
+    html += pictureEndpoint + "\">\n";
+
+    Serial.println("invoked endpoint for picture: " + pictureEndpoint);
+  }
+  html += "</body></html>\n";
+  return html;
 }
 
 
-bool checkPhoto( fs::FS &fs ) {         //funkcja sorawdzająca czy prawidłowo zapisany został plik z obrazem z kamery
-  File f_pic = fs.open("/photo.jpg");
+
+bool checkPhoto(fs::FS &fs, String photo) {         //funkcja sorawdzająca czy prawidłowo zapisany został plik z obrazem z kamery
+  File f_pic = fs.open(photo);
   unsigned int pic_sz = f_pic.size();
   return ( pic_sz > 100 );
 }
 
 
- void fotka()   //funkcja do wykonania zdjęcia 
+ void fotka(String photo)   //funkcja do wykonania zdjęcia 
  {
+    photo += ".jpg"; 
     camera_fb_t * fb = NULL;
-     bool ok = 0; 
+    bool ok = 0;
   do {
      fb = esp_camera_fb_get();  //uruchomienie kamery 
     if (!fb) {
         Serial.println("Camera capture failed");
      }
-       Serial.printf("Picture file name: %s\n", "photo.jpg");
-    File file = SPIFFS.open("/photo.jpg", FILE_WRITE);  //otwarcie pliku w pamięci SPIFF
+       Serial.printf("Picture file name: %s\n", photo.c_str());
+    File file = SPIFFS.open(photo, FILE_WRITE);  //otwarcie pliku w pamięci SPIFF
     if (!file) {
       Serial.println("Failed to open file in writing mode");
     }
     else {
       file.write(fb->buf, fb->len); //zapis obrazu w pamięci
       Serial.print("The picture has been saved in ");
-      Serial.print("photo.jpg");
+      Serial.print(photo);
       Serial.print(" - Size: ");
       Serial.print(file.size());
       Serial.println(" bytes");
     }
     file.close();
     esp_camera_fb_return(fb);
-    ok = checkPhoto(SPIFFS);
+    ok = checkPhoto(SPIFFS, photo);
   } while (!ok);
  }
 
@@ -142,25 +160,43 @@ if (!SPIFFS.begin(true)) {    //zamontowanie systemu plików w pamięci
   Serial.println("");
   Serial.println("Connected with WIFI");
 
-  Serial.print("Kamera gotowa wejdź na adres: 'http://");
+  Serial.print("Camera is ready. Go to adress: 'http://");
   Serial.println(WiFi.localIP());
 
     if (MDNS.begin("esp32")) {
     Serial.println("MDNS responder started");
   }
-
-server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", index_html);
-  });
-
- server.on("/fotka", HTTP_GET, [](AsyncWebServerRequest *request){
-  request->send(SPIFFS, "/photo.jpg", "image/jpg");
-  });
-  server.begin();
 }
 
 void loop() {
+
+  // zapis zdjęcia z nową nazwą z numerem
+  pictureNumber++;
+  String pictureNumberStr = String(pictureNumber);
+  String pictureStr = "/photo";
+  pictureStr += pictureNumberStr;
+  fotka(pictureStr);
+  Serial.println("picture taken properly");
+
+  // dodanie do nazwy zdjecia znumerem do listy zdjęc
+  pictureList[pictureNumber-1] = pictureStr;
+
+  for(int i=0; i<pictureNumber; i++) {
+    String endpointString = pictureList[i];
+    const char * pictureEndpoint = endpointString.c_str(); 
+    picturePath = endpointString + ".jpg";
+
+    Serial.println("created endpoint (server.on): " + endpointString);
+    Serial.println("created picturePath: " + picturePath);
+    server.on(pictureEndpoint, HTTP_GET, [](AsyncWebServerRequest *request) {
+      request->send(SPIFFS, picturePath, "image/jpg");
+    });
+  }
+
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", index_html());
+  });
+  server.begin();
+  diode_one_blink();
   delay(10000);
-  fotka();
-  Serial.printf("fotka ok");
 }
