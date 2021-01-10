@@ -53,6 +53,7 @@ String index_html() {
   html += "body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;} h3 {color: #444444;margin-bottom: 50px;}\n</style>\n</head>\n<body>\n";
   html += "<h2>ESP Image Web Server</h2>\n";
   html += "<h3>Current time: </3>" + formattedTime + "\n";
+  html += "\n";  
   html += "<div><input type=\"range\" min=\"1\" max=\"20\" value=\"10\" class=\"slider\" id=\"getFrequency\">\n";
   html += "\n";
   html += "<p>Reefresh frequency (per second): <span id=\"showFrequency\"></span></p></div>\n";
