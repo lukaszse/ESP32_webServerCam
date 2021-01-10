@@ -54,18 +54,20 @@ String index_html() {
   html += "<h2>ESP Image Web Server</h2>\n";
   html += "<h3>Current time: </3>" + formattedTime + "\n";
   html += "<div><input type=\"range\" min=\"1\" max=\"20\" value=\"10\" class=\"slider\" id=\"getFrequency\">\n";
+  html += "\n";
   html += "<p>Reefresh frequency (per second): <span id=\"showFrequency\"></span></p></div>\n";
   html += "\n";
-  html += "<form action=\"/get\">";
-  html += "From hour (full hour): <input type=\"number\" name=\"fromhHour\">";
-  html += "<input type=\"submit\" value=\"Submit\">";
-  html += "</form><br>";
-  html += "<form action=\"/get\">";
-  html += "To (full hour): <input type=\"number\" name=\"toHour\">";
-  html += "<input type=\"submit\" value=\"Submit\">";
+  html += "<form action=\"/starthour\" id=\"fromHour\">\n";
+  html += "From hour (full hour): <input type=\"number\" id=\"fieldStartHour\" name=\"startHour\">\n";
+  html += "<input type=\"submit\" value=\"Submit\">\n";
+  html += "</form><br>\n";
+  html += "<form action=\"/endhour\" id=\"toHour\">\n";
+  html += "To (full hour): <input type=\"number\" id=\"fieldStartHour\" name=\"startHour\">\n";
+  html += "<input type=\"submit\" value=\"Submit\">\n";
   html += "</form><br>";
 
   if(isWorking) {
+      html += "<H3>System is working  between: " + String(startHour) + " and " + String(endHour) + " hour." + "</H3>";
     for(int i=0; i<pictureNumber; i++) {
       String pictureEndpoint = "/fotka?number=" + String(i+1);
       html += "<img src=\"" + pictureEndpoint + "\">\n";
@@ -73,7 +75,8 @@ String index_html() {
       Serial.println("invoked endpoint for picture: " + pictureEndpoint);
     }
   } else {
-      html += "<H1>System is working between: " + String(startHour) + " and " + String(endHour) + "hour" + "</H1>";
+      html += "<H2>System is working  only between: " + String(startHour) + " and " + String(endHour) + " hour." + "</H2>";
+      html += "<h2>Set start and end hour.</H2>";
   }
 
   if(SPIFFS.totalBytes()-SPIFFS.usedBytes() == 0) {
@@ -82,16 +85,28 @@ String index_html() {
   html += "\n";
   html += "\n";
   html += "<script>\n";
+  // html += "var fromHour = document.getElementById(\"fromHour\").elements(\"startHour\");\n";
+  // html += "var toHour = document.getElementById(\"toHour\").elements(\"endHour\");\n";
   html += "var slider = document.getElementById(\"getFrequency\");\n";
   html += "var output = document.getElementById(\"showFrequency\");\n";
   html += "const req = new XMLHttpRequest();\n";
   html += "const url='/getFrequency';\n";
   html += "req.open(\"GET\", url, true);\n";
-  html += "req.send();\n";
+  // html += "req.send();\n";
+  // html += "const urlStart='/getStartHour';\n";
+  // html += "reqStart.open(\"GET\", urlStart, true);\n";
+  // html += "reqStart.send();\n";
+  // html += "const urlEnd='/getEndHour';\n";
+  // html += "reqEnd.open(\"GET\", urlEnd, true);\n";
+  // html += "reqEnd.send();\n";
   html += "req.onreadystatechange = (e) => {\n";
   html += "var frequency = req.responseText;\n";
+  // html += "var oldStartHour = reqStart.responseText;\n";
+  // html += "var oldEndHour = endHour.responseText;\n";
   html += "slider.value = frequency;\n";
   html += "output.innerHTML = frequency;\n";
+  // html += "fromHour.value = oldStartHour;\n";
+  // html += "toHour.value = oldEndHour;\n";
   html += "}\n";
   html += "slider.oninput = function() {\n";
   html += "output.innerHTML = this.value;\n";
@@ -227,6 +242,7 @@ if (!SPIFFS.begin(true)) {    //zamontowanie systemu plików w pamięci
     String picturePath = "/photo" + picNumber + ".jpg";
     request->send(SPIFFS, picturePath, "image/jpg");
   });
+
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/html", index_html());
   });
@@ -236,8 +252,29 @@ if (!SPIFFS.begin(true)) {    //zamontowanie systemu plików w pamięci
     request->send(200, "text/html", index_html());
     Serial.println("Refresh frequncy set to: " +  refreshStr);
   });
+
   server.on("/getFrequency", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/html", String(refreshFrequency));
+  });
+
+  server.on("/starthour", HTTP_GET, [](AsyncWebServerRequest *request){
+    String startHourStr = request->getParam(0)->value();
+    startHour = startHourStr.toInt();
+    request->send(200, "text/html", index_html());
+  });
+
+  server.on("/endhour", HTTP_GET, [](AsyncWebServerRequest *request){
+    String endHourStr = request->getParam(0)->value();
+    endHour = endHourStr.toInt();
+    request->send(200, "text/html", index_html());
+  });
+
+  server.on("/getStartHour", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", String(startHour));
+  });
+
+  server.on("/getEndHour", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", String(endHour));
   });
   
   server.begin();
@@ -261,18 +298,31 @@ if (!SPIFFS.begin(true)) {    //zamontowanie systemu plików w pamięci
 }
 
 void loop() {
+  formattedTime = timeClient.getFormattedTime();
+  int currentHour = timeClient.getHours();
+
   if(SPIFFS.totalBytes()-SPIFFS.usedBytes() == 0) {
     Serial.println("SPIFFS memory is full");
   } else {
-  formattedTime = timeClient.getFormattedTime();
-  if(pictureNumber == 10) {
-    pictureNumber = 0;
+
+    if(startHour<=endHour) {
+        if(startHour<=currentHour && currentHour<=endHour) isWorking = true;
+        else isWorking = false;
+    } else {
+        if(startHour<=currentHour || currentHour>=endHour) isWorking = true;
+        else isWorking = false;
     }
-    pictureNumber++;
-    fotka(pictureNumber);
-    diode_one_blink();
-    Serial.println();
-    Serial.println("Invoking delay for: " + String(refreshFrequency));
-    delay(refreshFrequency*1000);
+
+  if(isWorking) { 
+    if(pictureNumber == 10) {
+      pictureNumber = 0;
+      }
+      pictureNumber++;
+      fotka(pictureNumber);
+      diode_one_blink();
+      Serial.println();
+      Serial.println("Invoking delay for: " + String(refreshFrequency));
+      delay(refreshFrequency*1000);
+    }
   }
 }
