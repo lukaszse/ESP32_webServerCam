@@ -57,12 +57,12 @@ String index_html() {
   html += "\n";
   html += "<p>Reefresh frequency (per second): <span id=\"showFrequency\"></span></p></div>\n";
   html += "\n";
-  html += "<form action=\"/starthour\" id=\"fromHour\">\n";
+  html += "<form action=\"/startHour\">\n";
   html += "From hour (full hour): <input type=\"number\" id=\"fieldStartHour\" name=\"startHour\">\n";
   html += "<input type=\"submit\" value=\"Submit\">\n";
   html += "</form><br>\n";
-  html += "<form action=\"/endhour\" id=\"toHour\">\n";
-  html += "To (full hour): <input type=\"number\" id=\"fieldStartHour\" name=\"startHour\">\n";
+  html += "<form action=\"/endHour\">\n";
+  html += "To (full hour): <input type=\"number\" id=\"fieldEndHour\" name=\"startHour\">\n";
   html += "<input type=\"submit\" value=\"Submit\">\n";
   html += "</form><br>";
 
@@ -75,7 +75,7 @@ String index_html() {
       Serial.println("invoked endpoint for picture: " + pictureEndpoint);
     }
   } else {
-      html += "<H2>System is working  only between: " + String(startHour) + " and " + String(endHour) + " hour." + "</H2>";
+      html += "<H2>Pictures are not updating. System is working  only between: " + String(startHour) + " and " + String(endHour) + " hour." + "</H2>";
       html += "<h2>Set start and end hour.</H2>";
   }
 
@@ -85,29 +85,42 @@ String index_html() {
   html += "\n";
   html += "\n";
   html += "<script>\n";
-  // html += "var fromHour = document.getElementById(\"fromHour\").elements(\"startHour\");\n";
-  // html += "var toHour = document.getElementById(\"toHour\").elements(\"endHour\");\n";
+  html += "var fromHour = document.getElementById(\"fieldStartHour\");\n";         // wyslanie wartosci do formularz
+  html += "var toHour = document.getElementById(\"fieldEndHour\");\n";             // wyslanie wartosci do formularz
   html += "var slider = document.getElementById(\"getFrequency\");\n";
   html += "var output = document.getElementById(\"showFrequency\");\n";
+
   html += "const req = new XMLHttpRequest();\n";
   html += "const url='/getFrequency';\n";
   html += "req.open(\"GET\", url, true);\n";
-  // html += "req.send();\n";
-  // html += "const urlStart='/getStartHour';\n";
-  // html += "reqStart.open(\"GET\", urlStart, true);\n";
-  // html += "reqStart.send();\n";
-  // html += "const urlEnd='/getEndHour';\n";
-  // html += "reqEnd.open(\"GET\", urlEnd, true);\n";
-  // html += "reqEnd.send();\n";
+  html += "req.send();\n";
+
+  html += "const reqStart = new XMLHttpRequest();\n";                              // wyslanie wartosci do formularza
+  html += "const urlStart='/getStartHour';\n";                                     // wyslanie wartosci do formularza
+  html += "reqStart.open(\"GET\", urlStart, true);\n";                             // wyslanie wartosci do formularza
+  html += "reqStart.send();\n";                                                    // wyslanie wartosci do formularza
+
+  html += "const reqEnd = new XMLHttpRequest();\n";                                // wyslanie wartosci do formularza
+  html += "const urlEnd='/getEndHour';\n";                                         // wyslanie wartosci do formularza
+  html += "reqEnd.open(\"GET\", urlEnd, true);\n";                                 // wyslanie wartosci do formularza
+  html += "reqEnd.send();\n";                                                      // wyslanie wartosci do formularza
+
   html += "req.onreadystatechange = (e) => {\n";
   html += "var frequency = req.responseText;\n";
-  // html += "var oldStartHour = reqStart.responseText;\n";
-  // html += "var oldEndHour = endHour.responseText;\n";
   html += "slider.value = frequency;\n";
   html += "output.innerHTML = frequency;\n";
-  // html += "fromHour.value = oldStartHour;\n";
-  // html += "toHour.value = oldEndHour;\n";
   html += "}\n";
+
+  html += "reqStart.onreadystatechange = (e) => {\n";
+  html += "var oldStartHour = reqStart.responseText;\n";                            // wyslanie wartosci do formularz
+  html += "fromHour.value = oldStartHour;\n";                                       // wyslanie wartosci do formularz
+  html += "}\n";                       
+                    
+  html += "reqEnd.onreadystatechange = (e) => {\n";                      
+  html += "var oldEndHour = reqEnd.responseText;\n";                               // wyslanie wartosci do formularz
+  html += "toHour.value = oldEndHour;\n";                                           // wyslanie wartosci do formularz
+  html += "}\n";
+
   html += "slider.oninput = function() {\n";
   html += "output.innerHTML = this.value;\n";
   html += "sendSlider(this.id, this.value);\n";
@@ -257,13 +270,13 @@ if (!SPIFFS.begin(true)) {    //zamontowanie systemu plików w pamięci
     request->send(200, "text/html", String(refreshFrequency));
   });
 
-  server.on("/starthour", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/startHour", HTTP_GET, [](AsyncWebServerRequest *request){
     String startHourStr = request->getParam(0)->value();
     startHour = startHourStr.toInt();
     request->send(200, "text/html", index_html());
   });
 
-  server.on("/endhour", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/endHour", HTTP_GET, [](AsyncWebServerRequest *request){
     String endHourStr = request->getParam(0)->value();
     endHour = endHourStr.toInt();
     request->send(200, "text/html", index_html());
@@ -309,7 +322,7 @@ void loop() {
         if(startHour<=currentHour && currentHour<=endHour) isWorking = true;
         else isWorking = false;
     } else {
-        if(startHour<=currentHour || currentHour>=endHour) isWorking = true;
+        if(startHour<=currentHour || currentHour<=endHour) isWorking = true;
         else isWorking = false;
     }
 
